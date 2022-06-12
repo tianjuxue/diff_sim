@@ -17,8 +17,8 @@ def set_params():
     If a certain parameter is not set, a default value will be used (see src/arguments.py for details).
     '''
     args.case = 'fd_example'
-    args.num_grains = 20000
-    args.domain_length = 1.
+    args.num_grains = 10000
+    args.domain_length = 0.5
     args.domain_width = 0.2
     args.domain_height = 0.1
     args.r_beam = 0.03
@@ -56,12 +56,11 @@ def write_vtu_files():
 
 def initialization(poly_sim):
     '''
-    Prescribe the initial conditions for T, zeta and eta.
+    Prescribe the initial conditions for eta.
     '''
     num_nodes = len(poly_sim.centroids)
     eta = np.zeros((num_nodes, args.num_oris))
     eta = eta.at[np.arange(num_nodes), poly_sim.cell_ori_inds].set(1)
-    # shape of state: (num_nodes, 1 + 1 + args.num_oris)
     y0 = eta
     return y0
 
@@ -81,6 +80,6 @@ def run():
 
 
 if __name__ == "__main__":
-    # neper_domain()
+    neper_domain()
     # write_vtu_files()
-    run()
+    # run()

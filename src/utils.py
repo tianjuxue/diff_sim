@@ -86,14 +86,14 @@ def obj_to_vtu(domain_name):
 def walltime(func):
     def wrapper(*list_args, **keyword_args):
         start_time = time.time()
-        func(*list_args, **keyword_args)
+        return_values = func(*list_args, **keyword_args)
         end_time = time.time()
         time_elapsed = end_time - start_time
         platform = jax.lib.xla_bridge.get_backend().platform
         print(f"Time elapsed {time_elapsed} on platform {platform}") 
         with open(f'data/txt/walltime_{platform}_{args.case}_{args.layer:03d}.txt', 'w') as f:
             f.write(f'{start_time}, {end_time}, {time_elapsed}\n')
-        return time_elapsed
+        return return_values
     return wrapper
 
 

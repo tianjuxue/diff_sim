@@ -51,17 +51,19 @@ def explicit_euler(state, t_crt, f, ode_params):
 
 
 @walltime
-def odeint(polycrystal, mesh, get_T_fn, stepper, f, y0, ts, ode_params):
+def odeint(polycrystal, mesh, get_T, stepper, f, y0, ts, ode_params):
     '''
     ODE integrator. 
     '''
+    ys = [y0]
     clean_sols()
     state = (y0, ts[0])
-    T = get_T_fn(ts[0])
+    T = get_T(ts[0], ode_params)
     write_sols(polycrystal, mesh, y0, T, 0)
     for (i, t_crt) in enumerate(ts[1:]):
         state, y = stepper(state, t_crt, f, ode_params)
-        T = get_T_fn(t_crt)
+        # ys.append(y)
+        T = get_T(t_crt, ode_params)
         if (i + 1) % 20 == 0:
             print(f"step {i + 1} of {len(ts[1:])}, unix timestamp = {time.time()}")
             # print(y[:10, :5])
@@ -73,6 +75,7 @@ def odeint(polycrystal, mesh, get_T_fn, stepper, f, y0, ts, ode_params):
             write_sols(polycrystal, mesh, y, T, (i + 1) // write_sol_interval)
 
     write_info(polycrystal)
+    return y, ys
 
  
 def inspect_sol(y, y0, T):
@@ -253,13 +256,16 @@ def phase_field(polycrystal):
         graph.edges['anisotropy'] = anisotropy_term
         print("End of compute_anisotropy...")
 
-    def get_T(t):
+    def get_T(t, ode_params):
         '''
         Analytic T from https://doi.org/10.1016/j.actamat.2021.116862
         '''
+        Q, alpha = ode_params
+        # Q = 25
+        # alpha = 5.2
+
         T_ambiant = 300.
-        alpha = 5.2
-        Q = 25
+
         kappa = 2.7*1e-2
         x0 = 0.2*args.domain_length
 
@@ -280,17 +286,16 @@ def phase_field(polycrystal):
         gamma = 1
         vmap_outer = jax.vmap(np.outer, in_axes=(0, 0))
         grain_energy_1 = np.sum((eta**4/4. - eta**2/2.))
-        graph_energy_2 = gamma * (np.sum(vmap_outer(eta, eta)**2) - np.sum(eta**4))
+        graph_energy_2 = gamma * (np.sum(vmap_outer(eta, eta)**2) - np.sum(eta**4))  
         graph_energy_3 = np.sum((1 - zeta.reshape(-1))**2 * np.sum(eta**2, axis=1).reshape(-1))
         grain_energy = args.m_g * (grain_energy_1 +  graph_energy_2 + graph_energy_3)
         return grain_energy
 
     local_energy_grad_fn = jax.grad(local_energy_fn, argnums=0) 
 
-    def state_rhs(state, t, diff_args):
-        # laser_power, = diff_args
+    def state_rhs(state, t, ode_params):
         eta = state
-        T = get_T(t)
+        T = get_T(t, ode_params)
         zeta = 0.5 * (1 - np.tanh(1e1*(T/args.T_melt - 1)))
         local_energy_grad = local_energy_grad_fn(eta, zeta) / args.ad_hoc
         # TODO: concatenate is slow, any workaround?
