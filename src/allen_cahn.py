@@ -1,4 +1,3 @@
-import jraph
 import jax
 import jax.numpy as np
 import numpy as onp
@@ -59,22 +58,29 @@ def odeint(polycrystal, mesh, get_T, stepper, f, y0, ts, ode_params):
     clean_sols()
     state = (y0, ts[0])
     T = get_T(ts[0], ode_params)
-    write_sols(polycrystal, mesh, y0, T, 0)
+
+    # write_sols(polycrystal, mesh, y0, T, 0)
+
     for (i, t_crt) in enumerate(ts[1:]):
         state, y = stepper(state, t_crt, f, ode_params)
         # ys.append(y)
         T = get_T(t_crt, ode_params)
-        if (i + 1) % 20 == 0:
-            print(f"step {i + 1} of {len(ts[1:])}, unix timestamp = {time.time()}")
-            # print(y[:10, :5])
-            inspect_sol(y, y0, T)
-            if not np.all(np.isfinite(y)):          
-                raise ValueError(f"Found np.inf or np.nan in y - stop the program")
-        write_sol_interval = args.write_sol_interval
-        if (i + 1) % write_sol_interval == 0:
-            write_sols(polycrystal, mesh, y, T, (i + 1) // write_sol_interval)
 
-    write_info(polycrystal)
+        print(f"i = {i}, len(ts) = {len(ts)}")
+
+
+    #     if (i + 1) % 20 == 0:
+    #         print(f"step {i + 1} of {len(ts[1:])}, unix timestamp = {time.time()}")
+    #         # print(y[:10, :5])
+    #         inspect_sol(y, y0, T)
+    #         if not np.all(np.isfinite(y)):          
+    #             raise ValueError(f"Found np.inf or np.nan in y - stop the program")
+    #     write_sol_interval = args.write_sol_interval
+    #     if (i + 1) % write_sol_interval == 0:
+    #         write_sols(polycrystal, mesh, y, T, (i + 1) // write_sol_interval)
+
+    # write_info(polycrystal)
+
     return y, ys
 
  

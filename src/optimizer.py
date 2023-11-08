@@ -14,6 +14,7 @@ from src.utils import read_path, obj_to_vtu, walltime
 from src.arguments import args
 from src.allen_cahn import polycrystal_fd, phase_field, odeint, rk4, explicit_euler
 from src.example import initialization
+from src.checkpoint import chunk
 
 
 def set_params():
@@ -37,7 +38,7 @@ def odeint_aug(ys, stepper, f, y0, ts, ode_params):
     for (i, t_crt) in enumerate(ts[1:]):
         state, y = stepper(state, t_crt, f, ode_params)
 
-        state[0].at[:args.total_dofs_eta].set(ys[-i - 2].reshape(-1))
+        # state[0].at[:args.total_dofs_eta].set(ys[-i - 2].reshape(-1))
 
         if (i + 1) % 20 == 0:
             print(f"step {i + 1} of {len(ts[1:])}, unix timestamp = {time.time()}")
@@ -49,16 +50,16 @@ def odeint_aug(ys, stepper, f, y0, ts, ode_params):
 def compute_gradient_fd(aux_args, y0, ts, obj_func, state_rhs_func, ode_params):
     print(f"running finite difference")
     
-    h = 1e-2
+    h = 1e-3
     ode_params_flat, unravel = ravel_pytree(ode_params)
 
     grads = []
     for i in range(len(ode_params_flat)):
         ode_params_flat_plus = ode_params_flat.at[i].add(h)
-        yf_plus = odeint(*aux_args, explicit_euler, state_rhs_func, y0, ts, unravel(ode_params_flat_plus))
+        yf_plus, _ = odeint(*aux_args, explicit_euler, state_rhs_func, y0, ts, unravel(ode_params_flat_plus))
         tau_plus = obj_func(yf_plus)
         ode_params_flat_minus = ode_params_flat.at[i].add(-h)
-        yf_minus = odeint(*aux_args, explicit_euler, state_rhs_func, y0, ts, unravel(ode_params_flat_minus))
+        yf_minus, _ = odeint(*aux_args, explicit_euler, state_rhs_func, y0, ts, unravel(ode_params_flat_minus))
         tau_minus = obj_func(yf_minus)
         grad = (tau_plus - tau_minus) / (2 * h)
         grads.append(grad)
@@ -102,55 +103,89 @@ def compute_gradient_ad_late_discretization(yf, ys, ts, obj_func, state_rhs_func
     return grads
 
 
+
+def compute_gradient_ad_jax(aux_args, y0, ts, obj_func, state_rhs_func, ode_params):
+    def func(ode_params):
+        yf, _ = odeint(*aux_args, explicit_euler, state_rhs_func, y0, ts, ode_params)
+        tau = obj_func(yf)
+        return tau
+
+    grad_func = jax.grad(func)
+    grads_jax = grad_func(ode_params)
+    return grads_jax
+
+
 def run():
     set_params()
     # TODO: bad symbol ys
     ts, xs, ys, ps = read_path(f'data/txt/fd_example_1.txt')
+    dt = ts[1] - ts[0]
     polycrystal, mesh = polycrystal_fd(args.case)
     y0 = initialization(polycrystal)
     state_rhs, get_T = phase_field(polycrystal)
 
-
-
     # Remark: JAX is type sensitive, if you specify [20., 4], it fails.
-    # ode_params_0 = [25.1, 5.3]
     ode_params_0 = [24.9, 5.1]
 
 
+    # For debugging purpose
+    # Solving backward in time, explode easily, not accurate
+    # args.case = 'fd_example'
+    # yf, ys = odeint(polycrystal, mesh, get_T, explicit_euler, state_rhs, y0, ts, ode_params_0)
 
-    args.case = 'fd_example'
-    yf, ys = odeint(polycrystal, mesh, get_T, explicit_euler, state_rhs, y0, ts, ode_params_0)
+    # state_rhs_tau = lambda state, tau, ode_params: -state_rhs(state, -tau, ode_params)
+    # get_T_tau = lambda tau, ode_params: get_T(-tau, ode_params)
 
-
-    state_rhs_tau = lambda state, tau, ode_params: -state_rhs(state, -tau, ode_params)
-    get_T_tau = lambda tau, ode_params: get_T(-tau, ode_params)
-    
-    args.case = 'optimize'
-    args.write_sol_interval = 10
-
-    ts, xs, ys, ps = read_path(f'data/txt/fd_example_1.txt')
-    taus = -ts[::-1]
-    odeint(polycrystal, mesh, get_T_tau, explicit_euler, state_rhs_tau, yf, taus, ode_params_0)
-
-    exit()
+    # args.case = 'optimize'
+    # args.write_sol_interval = 10
+    # ts, xs, ys, ps = read_path(f'data/txt/fd_example_1.txt')
+    # taus = -ts[::-1]
+    # odeint(polycrystal, mesh, get_T_tau, explicit_euler, state_rhs_tau, yf, taus, ode_params_0)
+    # exit()
 
 
     ode_params_gt = [25., 5.2]    
     target_yf, _ = odeint(polycrystal, mesh, get_T, explicit_euler, state_rhs, y0, ts, ode_params_gt)
 
     def obj_func(yf, target_yf):
+        # Some arbitrary objective function
         return np.sum((yf - target_yf)**2)
  
     obj_func_partial = lambda yf: obj_func(yf, target_yf)
 
-    # grads_fd = compute_gradient_fd([polycrystal, mesh, get_T], y0, ts, obj_func_partial, state_rhs, ode_params_0)
-    # print(f"grads = {grads_fd}\n")
-    # exit()
+    # Early discretization seems to be the best option
+    # If we further use checkpoint method, we can compute derivative for a long time chain
+    def get_ode_fn():
+        @jax.jit
+        def ode_fn(y_prev, params_prev):
+            ode_params, dt, t_prev = params_prev
+            y_crt = y_prev + dt * state_rhs(y_prev, t_prev, ode_params)
+            t_crt = t_prev + dt
+            params_crt = (ode_params, dt, t_crt)
+            return (y_crt, params_crt)
+        return ode_fn
+
+    get_ode_fn = get_ode_fn()
+    y_combo_ini = (y0, (ode_params_0, dt, 0.))
+    print(f"start of checkpoint")
+    chunksize = len(ts[1:])
+    chunk(get_ode_fn, obj_func_partial, y_combo_ini, chunksize)
+
+    # Finite difference as ground truth
+    grads_fd = compute_gradient_fd([polycrystal, mesh, get_T], y0, ts, obj_func_partial, state_rhs, ode_params_0)
+    print(f"grads_fd = {grads_fd}\n")
 
 
-    args.total_dofs_eta = len(yf.reshape(-1))
-    grads_ad = compute_gradient_ad_late_discretization(yf, ys, ts, obj_func_partial, state_rhs, ode_params_0)
-    print(f"grads = {grads_ad}\n")
+    # Diff through loops, very slow, memory easily explodes 
+    print(f"start of grads_jax")
+    grads_jax = compute_gradient_ad_jax([polycrystal, mesh, get_T], y0, ts, obj_func_partial, state_rhs, ode_params_0)
+    print(f"grads_jax = {grads_jax}\n")
+
+
+    # Late discretization, formulation is elegant, but not working probably because inverse solve is not accurate 
+    # args.total_dofs_eta = len(yf.reshape(-1))
+    # grads_ad = compute_gradient_ad_late_discretization(yf, ys, ts, obj_func_partial, state_rhs, ode_params_0)
+    # print(f"grads = {grads_ad}\n")
 
 
 if __name__ == "__main__":
