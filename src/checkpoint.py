@@ -118,9 +118,11 @@ def chunk(ode_fn, obj_func_partial, y_combo_ini, chunksize, num_total_steps):
     # result = fwd_pred(y_combo_ini)
     # print(f"result sum = {np.sum(result[0])}")
 
+    # Method 1: The entire trajectory is just one chunk
     grad_result = jax.grad(obj_fn)(y_combo_ini)
     print(f"grad_result = {grad_result[1]}")
 
+    # Method 2: The entire trajectory is divided into chunks
     grad_result_chunks = jax.grad(obj_fn_chunks)(y_combo_ini)
     print(f"grad_result_chunk = {grad_result_chunks[1]}")
 
