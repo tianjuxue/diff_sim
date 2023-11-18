@@ -168,8 +168,10 @@ def run():
     get_ode_fn = get_ode_fn()
     y_combo_ini = (y0, (ode_params_0, dt, 0.))
     print(f"start of checkpoint")
-    chunksize = len(ts[1:])
-    chunk(get_ode_fn, obj_func_partial, y_combo_ini, chunksize)
+    # chunksize = 5
+    chunksize = 50
+    num_total_steps = len(ts[1:])
+    chunk(get_ode_fn, obj_func_partial, y_combo_ini, chunksize, num_total_steps)
 
     # Finite difference as ground truth
     grads_fd = compute_gradient_fd([polycrystal, mesh, get_T], y0, ts, obj_func_partial, state_rhs, ode_params_0)
@@ -177,9 +179,9 @@ def run():
 
 
     # Diff through loops, very slow, memory easily explodes 
-    print(f"start of grads_jax")
-    grads_jax = compute_gradient_ad_jax([polycrystal, mesh, get_T], y0, ts, obj_func_partial, state_rhs, ode_params_0)
-    print(f"grads_jax = {grads_jax}\n")
+    # print(f"start of grads_jax")
+    # grads_jax = compute_gradient_ad_jax([polycrystal, mesh, get_T], y0, ts, obj_func_partial, state_rhs, ode_params_0)
+    # print(f"grads_jax = {grads_jax}\n")
 
 
     # Late discretization, formulation is elegant, but not working probably because inverse solve is not accurate 
