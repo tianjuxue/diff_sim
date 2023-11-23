@@ -4,6 +4,8 @@ import jax.flatten_util
 import numpy as onp
 import os
 import glob
+from src.utils import walltime
+
 
 
 crt_file_path = os.path.dirname(__file__)
@@ -54,6 +56,7 @@ def chunk(ode_fn, obj_func_partial, y_combo_ini, chunksize, num_total_steps):
             y_combos = aux_fn(y_combo_ini, local_chunksize)
             return y_combos[-1], y_combos
 
+        @walltime
         def f_bwd(res, g):
             y_combos = res
             crt_vjp = g
@@ -123,8 +126,8 @@ def chunk(ode_fn, obj_func_partial, y_combo_ini, chunksize, num_total_steps):
     print(f"grad_result = {grad_result[1]}")
 
     # Method 2: The entire trajectory is divided into chunks
-    grad_result_chunks = jax.grad(obj_fn_chunks)(y_combo_ini)
-    print(f"grad_result_chunk = {grad_result_chunks[1]}")
+    # grad_result_chunks = jax.grad(obj_fn_chunks)(y_combo_ini)
+    # print(f"grad_result_chunk = {grad_result_chunks[1]}")
 
 
 def example():

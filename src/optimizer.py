@@ -174,8 +174,8 @@ def run():
     chunk(get_ode_fn, obj_func_partial, y_combo_ini, chunksize, num_total_steps)
 
     # Finite difference as ground truth
-    grads_fd = compute_gradient_fd([polycrystal, mesh, get_T], y0, ts, obj_func_partial, state_rhs, ode_params_0)
-    print(f"grads_fd = {grads_fd}\n")
+    # grads_fd = compute_gradient_fd([polycrystal, mesh, get_T], y0, ts, obj_func_partial, state_rhs, ode_params_0)
+    # print(f"grads_fd = {grads_fd}\n")
 
 
     # Diff through loops, very slow, memory easily explodes 

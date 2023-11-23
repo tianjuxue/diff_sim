@@ -90,7 +90,7 @@ def walltime(func):
         end_time = time.time()
         time_elapsed = end_time - start_time
         platform = jax.lib.xla_bridge.get_backend().platform
-        print(f"Time elapsed {time_elapsed} on platform {platform}") 
+        print(f"Time elapsed {time_elapsed} for function {func.__name__} on platform {platform}") 
         with open(f'data/txt/walltime_{platform}_{args.case}_{args.layer:03d}.txt', 'w') as f:
             f.write(f'{start_time}, {end_time}, {time_elapsed}\n')
         return return_values

@@ -262,6 +262,7 @@ def phase_field(polycrystal):
         graph.edges['anisotropy'] = anisotropy_term
         print("End of compute_anisotropy...")
 
+    @jax.jit
     def get_T(t, ode_params):
         '''
         Analytic T from https://doi.org/10.1016/j.actamat.2021.116862
